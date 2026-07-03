@@ -17,6 +17,26 @@ python web_app.py
 http://127.0.0.1:8765
 ```
 
+## 배포
+
+이 저장소에는 Render 배포용 `render.yaml`, Heroku/Railway 계열에서 쓰는 `Procfile`, Docker 배포용 `Dockerfile`이 포함되어 있습니다.
+
+Render에서 배포할 때:
+
+1. Render Dashboard에서 New Web Service를 선택합니다.
+2. GitHub 저장소 `adjust5162-star/analysis`를 연결합니다.
+3. Blueprint를 쓰면 `render.yaml` 설정이 자동 적용됩니다.
+4. 환경변수는 필요하면 아래처럼 설정합니다.
+
+```text
+HOST=0.0.0.0
+STOCK_API_PROVIDER=yahoo
+STOCK_API_KEY=
+ANALYSIS_DB_PATH=/tmp/analysis.db
+```
+
+현재 Yahoo Finance 기본 경로는 API 키가 필요 없습니다.
+
 ## 주식명 분석
 
 회사명이나 주식명을 입력하면 내장 별칭과 Yahoo Finance 검색 API로 실제 티커를 찾은 뒤 현재/최근 시세를 가져와 분석합니다.
