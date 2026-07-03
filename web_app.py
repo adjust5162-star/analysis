@@ -23,7 +23,8 @@ APP_DIR = Path(__file__).resolve().parent
 
 
 def db_path() -> Path:
-    configured = os.environ.get("ANALYSIS_DB_PATH", "analysis.db")
+    default_db = "/tmp/analysis.db" if os.environ.get("VERCEL") else "analysis.db"
+    configured = os.environ.get("ANALYSIS_DB_PATH", default_db)
     path = Path(configured)
     if not path.is_absolute():
         path = APP_DIR / path
@@ -32,68 +33,77 @@ def db_path() -> Path:
 
 def init_db() -> None:
     path = db_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(path) as conn:
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS analysis_history (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                created_at TEXT NOT NULL,
-                query TEXT NOT NULL,
-                symbol TEXT NOT NULL,
-                name TEXT NOT NULL,
-                score INTEGER NOT NULL,
-                investment_view TEXT NOT NULL,
-                last_close REAL NOT NULL,
-                currency TEXT,
-                payload TEXT NOT NULL
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with sqlite3.connect(path) as conn:
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS analysis_history (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    created_at TEXT NOT NULL,
+                    query TEXT NOT NULL,
+                    symbol TEXT NOT NULL,
+                    name TEXT NOT NULL,
+                    score INTEGER NOT NULL,
+                    investment_view TEXT NOT NULL,
+                    last_close REAL NOT NULL,
+                    currency TEXT,
+                    payload TEXT NOT NULL
+                )
+                """
             )
-            """
-        )
-        conn.commit()
+            conn.commit()
+    except sqlite3.Error:
+        return
 
 
 def save_history(query: str, results: list) -> None:
     init_db()
     now = datetime.utcnow().isoformat(timespec="seconds") + "Z"
-    with sqlite3.connect(db_path()) as conn:
-        for item in results:
-            payload = asdict(item)
-            conn.execute(
-                """
-                INSERT INTO analysis_history
-                (created_at, query, symbol, name, score, investment_view, last_close, currency, payload)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    now,
-                    query,
-                    item.symbol,
-                    item.name,
-                    item.score,
-                    item.investment_view,
-                    item.last_close,
-                    item.currency,
-                    json.dumps(payload, ensure_ascii=False),
-                ),
-            )
-        conn.commit()
+    try:
+        with sqlite3.connect(db_path()) as conn:
+            for item in results:
+                payload = asdict(item)
+                conn.execute(
+                    """
+                    INSERT INTO analysis_history
+                    (created_at, query, symbol, name, score, investment_view, last_close, currency, payload)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        now,
+                        query,
+                        item.symbol,
+                        item.name,
+                        item.score,
+                        item.investment_view,
+                        item.last_close,
+                        item.currency,
+                        json.dumps(payload, ensure_ascii=False),
+                    ),
+                )
+            conn.commit()
+    except sqlite3.Error:
+        return
 
 
 def read_history(limit: int = 20) -> list[dict]:
     init_db()
-    with sqlite3.connect(db_path()) as conn:
-        conn.row_factory = sqlite3.Row
-        rows = conn.execute(
-            """
-            SELECT created_at, query, symbol, name, score, investment_view, last_close, currency
-            FROM analysis_history
-            ORDER BY id DESC
-            LIMIT ?
-            """,
-            (limit,),
-        ).fetchall()
-    return [dict(row) for row in rows]
+    try:
+        with sqlite3.connect(db_path()) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                """
+                SELECT created_at, query, symbol, name, score, investment_view, last_close, currency
+                FROM analysis_history
+                ORDER BY id DESC
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+        return [dict(row) for row in rows]
+    except sqlite3.Error:
+        return []
 
 
 INDEX_HTML = """<!doctype html>

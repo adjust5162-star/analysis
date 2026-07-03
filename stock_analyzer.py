@@ -61,6 +61,8 @@ STOCK_NAME_ALIASES = {
     "lg에너지솔루션": ("373220.KS", "LG Energy Solution, Ltd.", "KSE", "KRW"),
     "lg화학": ("051910.KS", "LG Chem, Ltd.", "KSE", "KRW"),
     "셀트리온": ("068270.KS", "Celltrion, Inc.", "KSE", "KRW"),
+    "대덕전자": ("353200.KS", "Daeduck Electronics Co., Ltd.", "KSE", "KRW"),
+    "대덕": ("353200.KS", "Daeduck Electronics Co., Ltd.", "KSE", "KRW"),
     "posco": ("005490.KS", "POSCO Holdings Inc.", "KSE", "KRW"),
     "포스코": ("005490.KS", "POSCO Holdings Inc.", "KSE", "KRW"),
 }

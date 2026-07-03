@@ -1,0 +1,19 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "api/index.py",
+      "use": "@vercel/python"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "api/index.py"
+    }
+  ],
+  "env": {
+    "STOCK_API_PROVIDER": "yahoo",
+    "ANALYSIS_DB_PATH": "/tmp/analysis.db"
+  }
+}
