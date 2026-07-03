@@ -207,21 +207,27 @@ def build_ai_summary(results: list[dict]) -> str:
         for item in results
     ]
     client = OpenAI(api_key=api_key)
-    response = client.responses.create(
-        model=os.environ.get("OPENAI_SUMMARY_MODEL", "gpt-5.4-nano"),
-        input=[
-            {
-                "role": "system",
-                "content": "한국어로 160자 이내로 초보자용 주식 분석 요약을 작성하세요. 투자 조언이 아니라 관찰 가이드임을 유지하세요.",
-            },
-            {
-                "role": "user",
-                "content": json.dumps(compact, ensure_ascii=False, separators=(",", ":")),
-            },
-        ],
-        max_output_tokens=220,
-    )
-    return response.output_text.strip()
+    try:
+        response = client.responses.create(
+            model=os.environ.get("OPENAI_SUMMARY_MODEL", "gpt-5.4-nano"),
+            input=[
+                {
+                    "role": "system",
+                    "content": "한국어로 160자 이내로 초보자용 주식 분석 요약을 작성하세요. 투자 조언이 아니라 관찰 가이드임을 유지하세요.",
+                },
+                {
+                    "role": "user",
+                    "content": json.dumps(compact, ensure_ascii=False, separators=(",", ":")),
+                },
+            ],
+            max_output_tokens=220,
+        )
+        return response.output_text.strip()
+    except Exception as exc:
+        message = str(exc).lower()
+        if "invalid_api_key" in message or "incorrect api key" in message or "401" in message:
+            raise RuntimeError("OpenAI API 키가 유효하지 않습니다. Vercel 환경변수 OPENAI_API_KEY에 OpenAI Platform 키를 다시 저장하세요.") from exc
+        raise RuntimeError("AI 요약 생성 중 오류가 발생했습니다. 환경변수와 모델 설정을 확인하세요.") from exc
 
 
 INDEX_HTML = """<!doctype html>
