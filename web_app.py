@@ -185,7 +185,7 @@ def read_history_supabase(limit: int = 20) -> list[dict] | None:
 
 
 def build_ai_summary(results: list[dict]) -> str:
-    api_key = os.environ.get("OPENAI_API_KEY")
+    api_key = os.environ.get("OPENAI_API_KEY1") or os.environ.get("OPENAI_API_KEY")
     if not api_key:
         raise RuntimeError("OPENAI_API_KEY가 설정되지 않았습니다.")
     try:
