@@ -5,3 +5,5 @@ live-test-output/
 name-test-output/
 smoke-output/
 *.db
+
+.vercel

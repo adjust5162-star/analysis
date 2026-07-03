@@ -585,6 +585,24 @@ INDEX_HTML = """<!doctype html>
 
 
 class AppHandler(BaseHTTPRequestHandler):
+    def do_HEAD(self) -> None:
+        path = urlparse(self.path).path
+        if path in {"/", "/index.html"}:
+            data = INDEX_HTML.encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            return
+        if path == "/health":
+            data = json.dumps({"ok": True}).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            return
+        self.send_error(404)
+
     def do_GET(self) -> None:
         path = urlparse(self.path).path
         if path in {"/", "/index.html"}:
