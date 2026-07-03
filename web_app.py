@@ -10,6 +10,8 @@ import json
 import os
 import sqlite3
 import tempfile
+import urllib.parse
+import urllib.request
 from dataclasses import asdict
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -58,6 +60,8 @@ def init_db() -> None:
 
 
 def save_history(query: str, results: list) -> None:
+    if save_history_supabase(query, results):
+        return
     init_db()
     now = datetime.utcnow().isoformat(timespec="seconds") + "Z"
     try:
@@ -88,6 +92,9 @@ def save_history(query: str, results: list) -> None:
 
 
 def read_history(limit: int = 20) -> list[dict]:
+    supabase_rows = read_history_supabase(limit)
+    if supabase_rows is not None:
+        return supabase_rows
     init_db()
     try:
         with sqlite3.connect(db_path()) as conn:
@@ -104,6 +111,117 @@ def read_history(limit: int = 20) -> list[dict]:
         return [dict(row) for row in rows]
     except sqlite3.Error:
         return []
+
+
+def supabase_config() -> tuple[str, str] | None:
+    url = os.environ.get("SUPABASE_URL", "").rstrip("/")
+    key = os.environ.get("SUPABASE_KEY") or os.environ.get("SUPABASE_ANON_KEY") or os.environ.get("SUPABASE_PUBLISHABLE_KEY")
+    if not url or not key:
+        return None
+    return url, key
+
+
+def supabase_request(method: str, path: str, body: object | None = None):
+    config = supabase_config()
+    if not config:
+        return None
+    base_url, key = config
+    data = None if body is None else json.dumps(body, ensure_ascii=False).encode("utf-8")
+    request = urllib.request.Request(
+        f"{base_url}/rest/v1/{path}",
+        data=data,
+        method=method,
+        headers={
+            "apikey": key,
+            "Authorization": f"Bearer {key}",
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            "Prefer": "return=minimal",
+        },
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=12) as response:
+            raw = response.read().decode("utf-8")
+            return json.loads(raw) if raw else []
+    except Exception:
+        return None
+
+
+def save_history_supabase(query: str, results: list) -> bool:
+    if not supabase_config():
+        return False
+    now = datetime.utcnow().isoformat(timespec="seconds") + "Z"
+    rows = []
+    for item in results:
+        payload = asdict(item)
+        rows.append(
+            {
+                "created_at": now,
+                "query": query,
+                "symbol": item.symbol,
+                "name": item.name,
+                "score": item.score,
+                "investment_view": item.investment_view,
+                "last_close": item.last_close,
+                "currency": item.currency,
+                "payload": payload,
+            }
+        )
+    return supabase_request("POST", "analysis_history", rows) is not None
+
+
+def read_history_supabase(limit: int = 20) -> list[dict] | None:
+    if not supabase_config():
+        return None
+    params = urllib.parse.urlencode(
+        {
+            "select": "created_at,query,symbol,name,score,investment_view,last_close,currency",
+            "order": "created_at.desc",
+            "limit": str(limit),
+        }
+    )
+    data = supabase_request("GET", f"analysis_history?{params}")
+    return data if isinstance(data, list) else None
+
+
+def build_ai_summary(results: list[dict]) -> str:
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        raise RuntimeError("OPENAI_API_KEY가 설정되지 않았습니다.")
+    try:
+        from openai import OpenAI
+    except ImportError as exc:
+        raise RuntimeError("OpenAI SDK가 설치되지 않았습니다.") from exc
+
+    compact = [
+        {
+            "symbol": item.get("symbol"),
+            "name": item.get("name"),
+            "score": item.get("score"),
+            "view": item.get("investment_view"),
+            "risk": item.get("risk"),
+            "trend": item.get("trend"),
+            "return_20d_pct": item.get("return_20d_pct"),
+            "notes": item.get("notes", [])[:3],
+        }
+        for item in results
+    ]
+    client = OpenAI(api_key=api_key)
+    response = client.responses.create(
+        model=os.environ.get("OPENAI_SUMMARY_MODEL", "gpt-5.4-nano"),
+        input=[
+            {
+                "role": "system",
+                "content": "한국어로 160자 이내로 초보자용 주식 분석 요약을 작성하세요. 투자 조언이 아니라 관찰 가이드임을 유지하세요.",
+            },
+            {
+                "role": "user",
+                "content": json.dumps(compact, ensure_ascii=False, separators=(",", ":")),
+            },
+        ],
+        max_output_tokens=220,
+    )
+    return response.output_text.strip()
 
 
 INDEX_HTML = """<!doctype html>
@@ -410,6 +528,7 @@ INDEX_HTML = """<!doctype html>
       <section class="card hidden" id="summary"></section>
       <section class="card hidden" id="tableWrap"></section>
       <section class="card hidden" id="details"></section>
+      <section class="card hidden" id="aiSummary"></section>
       <section class="card hidden" id="history"></section>
     </div>
   </main>
@@ -424,7 +543,9 @@ INDEX_HTML = """<!doctype html>
     const summaryEl = document.querySelector("#summary");
     const tableWrap = document.querySelector("#tableWrap");
     const detailsEl = document.querySelector("#details");
+    const aiSummaryEl = document.querySelector("#aiSummary");
     const historyEl = document.querySelector("#history");
+    let lastResults = [];
     let mode = "file";
 
     function setMode(next) {
@@ -442,6 +563,7 @@ INDEX_HTML = """<!doctype html>
       summaryEl.classList.add("hidden");
       tableWrap.classList.add("hidden");
       detailsEl.classList.add("hidden");
+      aiSummaryEl.classList.add("hidden");
       historyEl.classList.add("hidden");
     }
 
@@ -466,6 +588,7 @@ INDEX_HTML = """<!doctype html>
     }
 
     function render(results) {
+      lastResults = results;
       const first = results[0];
       summaryEl.innerHTML = `
         <div class="metric"><span>투자 판단</span><strong class="${viewClass(first.investment_view)}">${first.investment_view}</strong></div>
@@ -492,6 +615,7 @@ INDEX_HTML = """<!doctype html>
         </table>
       `;
       detailsEl.innerHTML = `<div class="detail">
+        <button class="secondary" id="aiSummaryBtn" type="button">AI 짧은 요약</button>
         ${results.map(item => `
           <h3>${item.name || item.symbol} <span class="ticker-sub">${item.symbol} ${item.exchange || ""}</span></h3>
           <p><strong>${item.investment_view}</strong>: ${item.beginner_summary}</p>
@@ -504,7 +628,26 @@ INDEX_HTML = """<!doctype html>
       summaryEl.classList.remove("hidden");
       tableWrap.classList.remove("hidden");
       detailsEl.classList.remove("hidden");
+      const aiButton = document.querySelector("#aiSummaryBtn");
+      if (aiButton) aiButton.addEventListener("click", summarizeWithAI);
       loadHistory();
+    }
+
+    async function summarizeWithAI() {
+      aiSummaryEl.innerHTML = `<div class="detail">AI 요약을 생성 중입니다...</div>`;
+      aiSummaryEl.classList.remove("hidden");
+      try {
+        const res = await fetch("/api/summarize", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ results: lastResults })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "요약 생성에 실패했습니다.");
+        aiSummaryEl.innerHTML = `<div class="detail"><h3>AI 짧은 요약</h3><p>${data.summary}</p></div>`;
+      } catch (err) {
+        aiSummaryEl.innerHTML = `<div class="detail">${err.message}</div>`;
+      }
     }
 
     async function loadHistory() {
@@ -623,7 +766,11 @@ class AppHandler(BaseHTTPRequestHandler):
         self.send_error(404)
 
     def do_POST(self) -> None:
-        if urlparse(self.path).path != "/api/analyze":
+        path = urlparse(self.path).path
+        if path == "/api/summarize":
+            self.summarize()
+            return
+        if path != "/api/analyze":
             self.send_error(404)
             return
         try:
@@ -645,6 +792,17 @@ class AppHandler(BaseHTTPRequestHandler):
                 query = get_form_value(form, "symbols") or "symbols"
             save_history(query, results)
             self.send_json({"results": [asdict(item) for item in results]})
+        except Exception as exc:
+            self.send_json({"error": str(exc)}, status=400)
+
+    def summarize(self) -> None:
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+            payload = json.loads(self.rfile.read(length).decode("utf-8") or "{}")
+            results = payload.get("results") or []
+            if not isinstance(results, list) or not results:
+                raise ValueError("요약할 분석 결과가 없습니다.")
+            self.send_json({"summary": build_ai_summary(results)})
         except Exception as exc:
             self.send_json({"error": str(exc)}, status=400)
 

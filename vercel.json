@@ -14,6 +14,7 @@
   ],
   "env": {
     "STOCK_API_PROVIDER": "yahoo",
-    "ANALYSIS_DB_PATH": "/tmp/analysis.db"
+    "ANALYSIS_DB_PATH": "/tmp/analysis.db",
+    "OPENAI_SUMMARY_MODEL": "gpt-5.4-nano"
   }
 }
