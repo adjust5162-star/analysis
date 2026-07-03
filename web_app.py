@@ -271,12 +271,13 @@ INDEX_HTML = """<!doctype html>
       line-height: 1.45;
     }
     header {
-      border-bottom: 1px solid rgba(223,229,218,.7);
-      background: rgba(255,255,255,.72);
+      margin: 18px auto 0;
+      width: min(1120px, calc(100vw - 32px));
+      border: 1px solid rgba(59, 130, 246, .16);
+      border-radius: 24px;
+      background: linear-gradient(135deg, rgba(255,255,255,.94), rgba(239,246,255,.88));
+      box-shadow: 0 22px 60px rgba(15, 23, 42, .12);
       backdrop-filter: blur(18px);
-      position: sticky;
-      top: 0;
-      z-index: 3;
     }
     .wrap {
       width: min(1120px, calc(100vw - 32px));
@@ -285,18 +286,38 @@ INDEX_HTML = """<!doctype html>
     .top {
       display: flex;
       justify-content: space-between;
-      gap: 16px;
-      align-items: center;
-      padding: 18px 0;
+      gap: 28px;
+      align-items: flex-end;
+      padding: 34px 32px 36px;
     }
     h1 {
-      font-size: 22px;
+      font-size: 64px;
+      line-height: .95;
+      font-weight: 800;
       margin: 0;
       letter-spacing: 0;
+      color: #0f172a;
     }
     .sub {
       color: var(--muted);
+      font-size: 16px;
+      line-height: 1.65;
+      margin-top: 12px;
+      max-width: 560px;
+    }
+    .top > .sub {
+      color: #2563eb;
       font-size: 13px;
+      font-weight: 800;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      margin: 0 0 6px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: rgba(37, 99, 235, .08);
+      border: 1px solid rgba(37, 99, 235, .14);
+      box-shadow: 0 10px 24px rgba(37, 99, 235, .10);
+      white-space: nowrap;
     }
     main {
       display: grid;
@@ -485,15 +506,25 @@ INDEX_HTML = """<!doctype html>
       th:nth-child(6), td:nth-child(6) { display: none; }
     }
     @media (max-width: 640px) {
+      header {
+        margin-top: 12px;
+        border-radius: 20px;
+      }
       .top { display: block; }
       .top > .sub { display: none; }
-      h1 { font-size: 20px; }
+      h1 { font-size: 42px; }
+      .top { padding: 26px 22px 28px; }
+      .sub {
+        font-size: 15px;
+        line-height: 1.55;
+        margin-top: 10px;
+      }
     }
   </style>
 </head>
 <body>
   <header>
-    <div class="wrap top">
+    <div class="top">
       <div>
         <h1>Stock Lens</h1>
         <div class="sub">회사명만 입력하면 현재 시세와 쉬운 판단을 보여줍니다.</div>
