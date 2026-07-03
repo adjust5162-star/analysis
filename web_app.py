@@ -798,7 +798,7 @@ class AppHandler(BaseHTTPRequestHandler):
     def summarize(self) -> None:
         try:
             length = int(self.headers.get("Content-Length", "0"))
-            payload = json.loads(self.rfile.read(length).decode("utf-8") or "{}")
+            payload = json.loads(self.rfile.read(length).decode("utf-8-sig") or "{}")
             results = payload.get("results") or []
             if not isinstance(results, list) or not results:
                 raise ValueError("요약할 분석 결과가 없습니다.")
